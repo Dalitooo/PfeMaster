@@ -1,5 +1,7 @@
 #!/bin/bash
 
+rm -f /app/public/hot
+
 echo "==> DB_HOST=${DB_HOST:-NOT SET}"
 echo "==> DB_PORT=${DB_PORT:-NOT SET}"
 echo "==> DB_DATABASE=${DB_DATABASE:-NOT SET}"
