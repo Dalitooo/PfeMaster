@@ -25,6 +25,8 @@ RUN mkdir -p storage/logs storage/framework/sessions \
         storage/framework/views storage/framework/cache/data bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
+RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/start.sh
+
 EXPOSE 8080
 
-ENTRYPOINT ["bash", "/app/start.sh"]
+ENTRYPOINT ["/app/start.sh"]
