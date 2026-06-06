@@ -1,23 +1,19 @@
 #!/bin/bash
 
-echo "==> PHP: $(php -v | head -1)"
-echo "==> DB_HOST: ${DB_HOST:-NOT SET}"
-echo "==> DB_DATABASE: ${DB_DATABASE:-NOT SET}"
+echo "==> PORT=${PORT:-8080}"
 echo "==> APP_KEY set: $([ -n "$APP_KEY" ] && echo YES || echo NO)"
-
-echo "==> Running migrations..."
-php artisan migrate --force 2>&1 && echo "Migrations OK" || echo "Migration failed (see above)"
+echo "==> DB_HOST=${DB_HOST:-NOT SET}"
 
 echo "==> Caching config..."
-php artisan config:cache 2>&1 || echo "Config cache failed"
+php artisan config:cache 2>&1 || echo "Config cache skipped"
 
 echo "==> Caching routes..."
-php artisan route:cache 2>&1 || echo "Route cache failed"
+php artisan route:cache 2>&1 || echo "Route cache skipped"
 
-echo "==> Caching views..."
-php artisan view:cache 2>&1 || echo "View cache failed"
+echo "==> Running migrations..."
+php artisan migrate --force 2>&1 || echo "Migration failed (check DB vars)"
 
 php artisan storage:link 2>/dev/null || true
 
-echo "==> Starting server on port ${PORT:-8080}"
+echo "==> Starting server on port ${PORT:-8080}..."
 exec php artisan serve --host=0.0.0.0 --port=${PORT:-8080}
