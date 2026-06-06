@@ -12,12 +12,13 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 WORKDIR /app
 
 COPY composer.json composer.lock ./
-RUN composer install --optimize-autoloader --no-dev --no-interaction
+RUN composer install --optimize-autoloader --no-dev --no-interaction --no-scripts
 
 COPY package*.json ./
 RUN npm ci
 
 COPY . .
+RUN composer dump-autoload --optimize && php artisan package:discover --ansi
 RUN npm run build
 
 RUN mkdir -p storage/logs storage/framework/sessions \
