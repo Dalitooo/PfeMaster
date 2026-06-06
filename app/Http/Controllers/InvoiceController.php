@@ -40,13 +40,17 @@ class InvoiceController extends Controller
 
     public function create(Request $request)
     {
-        $patients     = User::where('role', 'patient')->where('is_active', true)->orderBy('name')->get();
-        $treatments   = Treatment::with('category')->where('is_active', true)->orderBy('name')->get();
-        $appointment  = $request->appointment_id
-            ? Appointment::with('patient')->find($request->appointment_id)
+        $patients    = User::where('role', 'patient')->where('is_active', true)->orderBy('name')->get();
+        $treatments  = Treatment::with('category')->where('is_active', true)->orderBy('name')->get();
+        $appointment = $request->appointment_id
+            ? Appointment::with(['patient', 'treatmentRecords.treatment'])->find($request->appointment_id)
             : null;
 
-        return view('invoices.create', compact('patients', 'treatments', 'appointment'));
+        $appointmentTreatments = $appointment
+            ? $appointment->treatmentRecords->whereNotIn('status', ['cancelled'])->values()
+            : collect();
+
+        return view('invoices.create', compact('patients', 'treatments', 'appointment', 'appointmentTreatments'));
     }
 
     public function store(Request $request)
@@ -102,6 +106,10 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice)
     {
+        $user = Auth::user();
+        if ($user->isPatient()) {
+            abort_if($invoice->patient_id !== $user->id, 403);
+        }
         $invoice->load(['patient', 'issuedBy', 'appointment', 'items.treatment']);
         return view('invoices.show', compact('invoice'));
     }

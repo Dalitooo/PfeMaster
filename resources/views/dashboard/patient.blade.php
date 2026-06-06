@@ -83,4 +83,47 @@
         </div>
     </div>
 </div>
+
+@if($unpaidInvoices->isNotEmpty())
+<div class="mt-6 bg-white rounded-2xl border border-red-200">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-red-100">
+        <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+            <h2 class="font-semibold text-slate-800">Factures impayées</h2>
+            <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">{{ $unpaidInvoices->count() }}</span>
+        </div>
+        <a href="{{ route('invoices.index') }}" class="text-sm text-blue-600 hover:underline">Voir tout</a>
+    </div>
+    <div class="divide-y divide-slate-100">
+        @foreach($unpaidInvoices as $invoice)
+        <a href="{{ route('invoices.show', $invoice) }}" class="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50">
+            <div>
+                <div class="text-sm font-medium text-slate-800">{{ $invoice->invoice_number }}</div>
+                <div class="text-xs text-slate-500 mt-0.5">
+                    @if($invoice->due_date)
+                        Échéance : {{ $invoice->due_date->format('d/m/Y') }}
+                        @if($invoice->due_date->isPast())
+                            <span class="text-red-600 font-semibold">· En retard</span>
+                        @endif
+                    @else
+                        Aucune date d'échéance
+                    @endif
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="text-sm font-bold text-red-600">DT {{ number_format($invoice->total, 3, ',', ' ') }}</div>
+                <span class="text-xs px-2 py-0.5 rounded-full font-medium
+                    {{ $invoice->status === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700' }}">
+                    {{ $invoice->status === 'overdue' ? 'En retard' : 'À payer' }}
+                </span>
+            </div>
+        </a>
+        @endforeach
+    </div>
+    <div class="px-5 py-3 border-t border-red-100 flex justify-between items-center bg-red-50 rounded-b-2xl">
+        <span class="text-sm text-slate-600">Total dû</span>
+        <span class="text-lg font-bold text-red-600">DT {{ number_format($unpaidInvoices->sum('total'), 3, ',', ' ') }}</span>
+    </div>
+</div>
+@endif
 @endsection

@@ -72,4 +72,43 @@
         </div>
     </div>
 </div>
+
+{{-- Appointments completed but not yet invoiced --}}
+<div class="mt-6 bg-white rounded-2xl border border-slate-200">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+            <h2 class="font-semibold text-slate-800">Consultations terminées — à facturer</h2>
+            @if($appointmentsToInvoice->isNotEmpty())
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                    {{ $appointmentsToInvoice->count() }}
+                </span>
+            @endif
+        </div>
+        <a href="{{ route('invoices.create') }}" class="text-sm text-blue-600 hover:underline">+ Nouvelle facture</a>
+    </div>
+    <div class="divide-y divide-slate-100">
+        @forelse($appointmentsToInvoice as $appt)
+        <div class="flex items-center gap-4 px-5 py-3.5">
+            <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium text-slate-800">{{ $appt->patient->name }}</div>
+                <div class="text-xs text-slate-400 mt-0.5">
+                    {{ $appt->appointment_date->format('d/m/Y') }} · Dr. {{ $appt->doctor->name }}
+                    @if($appt->treatmentRecords->isNotEmpty())
+                        · <span class="text-blue-600">{{ $appt->treatmentRecords->count() }} traitement(s)</span>
+                    @else
+                        · <span class="text-slate-400">Aucun traitement enregistré</span>
+                    @endif
+                </div>
+            </div>
+            <a href="{{ route('invoices.create', ['appointment_id' => $appt->id]) }}"
+               class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-semibold hover:bg-emerald-100 border border-emerald-200">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Créer la facture
+            </a>
+        </div>
+        @empty
+        <div class="px-5 py-8 text-center text-sm text-slate-400">Toutes les consultations terminées ont été facturées.</div>
+        @endforelse
+    </div>
+</div>
 @endsection

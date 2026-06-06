@@ -49,6 +49,45 @@ class TreatmentRecordController extends Controller
 
     public function store(Request $request)
     {
+        // Multi-treatment mode (from appointment dossier modal)
+        if ($request->has('treatments')) {
+            $request->validate([
+                'patient_id'                   => 'required|exists:users,id',
+                'doctor_id'                    => 'required|exists:users,id',
+                'appointment_id'               => 'nullable|exists:appointments,id',
+                'treatments'                   => 'required|array|min:1',
+                'treatments.*.treatment_id'    => 'required|exists:treatments,id',
+                'treatments.*.tooth_number'    => 'nullable|string|max:10',
+                'treatments.*.cost'            => 'required|numeric|min:0',
+                'treatments.*.status'          => 'required|in:planned,in_progress,completed,cancelled',
+                'treatments.*.notes'           => 'nullable|string',
+                'treatments.*.completed_date'  => 'nullable|date',
+            ]);
+
+            foreach ($request->treatments as $t) {
+                TreatmentRecord::create([
+                    'patient_id'     => $request->patient_id,
+                    'doctor_id'      => $request->doctor_id,
+                    'appointment_id' => $request->appointment_id,
+                    'treatment_id'   => $t['treatment_id'],
+                    'tooth_number'   => $t['tooth_number'] ?? null,
+                    'cost'           => $t['cost'],
+                    'status'         => $t['status'],
+                    'notes'          => $t['notes'] ?? null,
+                    'completed_date' => $t['completed_date'] ?? null,
+                ]);
+            }
+
+            if ($request->appointment_id) {
+                return redirect()->route('appointments.show', $request->appointment_id)
+                                 ->with('success', count($request->treatments) . ' acte(s) enregistré(s).');
+            }
+
+            return redirect()->route('treatment-records.index')
+                             ->with('success', 'Actes enregistrés.');
+        }
+
+        // Single-treatment mode (from treatment-records.create form)
         $validated = $request->validate([
             'patient_id'      => 'required|exists:users,id',
             'doctor_id'       => 'required|exists:users,id',

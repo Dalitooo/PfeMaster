@@ -122,7 +122,15 @@ class DashboardController extends Controller
             ->limit(8)
             ->get();
 
-        return view('dashboard.secretary', compact('stats', 'todayAppointments', 'pendingAppointments'));
+        $appointmentsToInvoice = Appointment::with(['patient', 'doctor', 'treatmentRecords'])
+            ->whereIn('cabinet_id', $cabinetIds)
+            ->where('status', 'completed')
+            ->whereDoesntHave('invoice')
+            ->orderByDesc('appointment_date')
+            ->limit(10)
+            ->get();
+
+        return view('dashboard.secretary', compact('stats', 'todayAppointments', 'pendingAppointments', 'appointmentsToInvoice'));
     }
 
     private function patientDashboard(User $user)
@@ -145,7 +153,12 @@ class DashboardController extends Controller
             ->where('status', 'completed')
             ->sum('cost');
 
-        return view('dashboard.patient', compact('upcomingAppointments', 'recentTreatments', 'totalCost', 'user'));
+        $unpaidInvoices = Invoice::where('patient_id', $user->id)
+            ->whereIn('status', ['issued', 'overdue'])
+            ->orderBy('due_date')
+            ->get();
+
+        return view('dashboard.patient', compact('upcomingAppointments', 'recentTreatments', 'totalCost', 'unpaidInvoices', 'user'));
     }
 
     private function supplierDashboard(User $user)

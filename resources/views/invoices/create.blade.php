@@ -42,7 +42,52 @@
                     Ajouter une ligne
                 </button>
             </div>
+
+            @if($appointmentTreatments->isNotEmpty())
+            <div class="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 border border-blue-100 text-xs text-blue-700">
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                {{ $appointmentTreatments->count() }} traitement(s) du dossier médical pré-rempli(s) automatiquement.
+            </div>
+            @endif
+
             <div id="lines-container" class="space-y-3">
+                @if($appointmentTreatments->isNotEmpty())
+                    @foreach($appointmentTreatments as $i => $record)
+                    <div class="line-row grid grid-cols-12 gap-3 items-end">
+                        <div class="col-span-4">
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Traitement (facultatif)</label>
+                            <select name="items[{{ $i }}][treatment_id]" class="treatment-select w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">Élément personnalisé</option>
+                                @foreach($treatments as $t)
+                                <option value="{{ $t->id }}" data-price="{{ $t->price }}" data-name="{{ $t->name }}"
+                                    @selected($record->treatment_id == $t->id)>{{ $t->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-span-3">
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Description <span class="text-red-500">*</span></label>
+                            <input type="text" name="items[{{ $i }}][description]" required
+                                   value="{{ $record->treatment->name }}{{ $record->tooth_number ? ' — dent '.$record->tooth_number : '' }}"
+                                   class="line-desc w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Qté</label>
+                            <input type="number" name="items[{{ $i }}][quantity]" value="1" min="1" required
+                                   class="line-qty w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Prix</label>
+                            <input type="number" name="items[{{ $i }}][unit_price]" value="{{ $record->cost }}" min="0" step="0.01" required
+                                   class="line-price w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div class="col-span-1 flex justify-end">
+                            <button type="button" class="remove-line p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    @endforeach
+                @else
                 <div class="line-row grid grid-cols-12 gap-3 items-end">
                     <div class="col-span-4">
                         <label class="block text-xs font-medium text-slate-600 mb-1">Traitement (facultatif)</label>
@@ -69,6 +114,7 @@
                         </button>
                     </div>
                 </div>
+                @endif
             </div>
 
             <div class="mt-5 pt-4 border-t border-slate-100">
@@ -92,8 +138,9 @@
 
 @push('scripts')
 <script>
-let lineIdx = 0;
+let lineIdx = {{ max($appointmentTreatments->count() - 1, 0) }};
 const treatmentsData = @json($treatments->mapWithKeys(fn($t) => [$t->id => ['name' => $t->name, 'price' => $t->price]]));
+document.addEventListener('DOMContentLoaded', calcTotal);
 
 function calcTotal() {
     let sub = 0;

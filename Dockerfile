@@ -18,6 +18,7 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+RUN rm -f /app/public/hot
 RUN composer dump-autoload --optimize && php artisan package:discover --ansi
 RUN npm run build
 

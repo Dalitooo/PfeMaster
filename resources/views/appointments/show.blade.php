@@ -38,7 +38,8 @@
     ];
 
     $hasOrdonnance = $appointment->ordonnances->isNotEmpty();
-    $openDossier   = $errors->hasAny(['treatment_id', 'cost', 'tooth_number', 'status', 'notes', 'scheduled_date', 'completed_date']);
+    $openDossier   = $errors->hasAny(['treatment_id', 'cost', 'tooth_number', 'status', 'notes', 'scheduled_date', 'completed_date', 'treatments'])
+                    || collect($errors->keys())->contains(fn($k) => str_starts_with($k, 'treatments.'));
     $openCnam      = $errors->hasAny(['dental_acts', 'prostheses']);
     $openOrdonnance = $errors->hasAny(['items', 'items.*.medicament']);
 @endphp
@@ -184,20 +185,13 @@
                 <div>
                     <div class="font-semibold text-emerald-900 mb-1">Terminer la consultation</div>
                     <div class="text-sm text-emerald-700">
-                        @if(!$hasTreatment || !$hasCnam)
-                            Complétez d'abord le dossier médical{{ !$hasCnam ? ' et le bulletin CNAM' : '' }} avant de clôturer.
-                        @else
-                            Dossier et bulletin créés. Vous pouvez clôturer la consultation.
-                        @endif
+                        Vous pouvez clôturer la consultation à tout moment.
                     </div>
                 </div>
                 <form method="POST" action="{{ route('appointments.status', $appointment) }}" class="shrink-0">
                     @csrf @method('PATCH')
                     <input type="hidden" name="status" value="completed">
-                    <button type="submit"
-                            {{ (!$hasTreatment || !$hasCnam) ? 'disabled' : '' }}
-                            class="px-5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap
-                                {{ (!$hasTreatment || !$hasCnam) ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700' }}">
+                    <button type="submit" class="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 whitespace-nowrap">
                         Terminer la consultation
                     </button>
                 </form>
@@ -267,6 +261,19 @@
             </button>
         </div>
         @endif
+        @if($isOpen)
+        <div class="mt-3 pt-3 border-t border-slate-100">
+            <form method="POST" action="{{ route('appointments.status', $appointment) }}">
+                @csrf @method('PATCH')
+                <input type="hidden" name="status" value="completed">
+                <button type="submit"
+                        class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                    Terminer la consultation
+                </button>
+            </form>
+        </div>
+        @endif
     </div>
 
     {{-- ════════════════════════════════════════════════════════════════
@@ -290,7 +297,10 @@
                     <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
                         <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     </div>
-                    <h2 class="font-bold text-slate-800">Enregistrer un acte</h2>
+                    <div>
+                        <h2 class="font-bold text-slate-800">Dossier médical</h2>
+                        <p class="text-xs text-slate-400">{{ $appointment->patient->name }} — {{ $appointment->appointment_date->format('d/m/Y') }}</p>
+                    </div>
                 </div>
                 <button type="button" @click="showDossier = false" class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -298,20 +308,15 @@
             </div>
 
             {{-- Form --}}
-            <form method="POST" action="{{ route('treatment-records.store') }}"
-                  x-data="{
-                      cost: '{{ old('cost', '') }}',
-                      prices: {{ $treatments->pluck('price','id')->toJson() }},
-                      setPrice(id) { this.cost = this.prices[id] ?? ''; }
-                  }">
+            <form method="POST" action="{{ route('treatment-records.store') }}" x-data="dossierForm()">
                 @csrf
                 <input type="hidden" name="patient_id"     value="{{ $appointment->patient_id }}">
                 <input type="hidden" name="doctor_id"      value="{{ $appointment->doctor_id }}">
                 <input type="hidden" name="appointment_id" value="{{ $appointment->id }}">
 
-                <div class="p-6 space-y-4">
+                <div class="p-6 space-y-3 max-h-[60vh] overflow-y-auto">
 
-                    @if($errors->any() && $openDossier)
+                    @if($errors->isNotEmpty() && $openDossier)
                     <div class="bg-red-50 rounded-xl px-4 py-3 text-sm text-red-700">
                         <ul class="list-disc list-inside space-y-0.5">
                             @foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach
@@ -319,62 +324,81 @@
                     </div>
                     @endif
 
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Traitement <span class="text-red-500">*</span></label>
-                        <select name="treatment_id" required @change="setPrice($event.target.value)"
-                                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="">Sélectionner un traitement</option>
-                            @foreach($treatments as $t)
-                            <option value="{{ $t->id }}" @selected(old('treatment_id') == $t->id)>
-                                {{ $t->name }} (DT {{ number_format($t->price, 3, ',', ' ') }})
-                            </option>
-                            @endforeach
-                        </select>
-                    </div>
+                    <template x-for="(row, i) in rows" :key="i">
+                        <div class="bg-slate-50 rounded-xl p-4 space-y-3 border border-slate-200">
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1.5">Numéro de dent</label>
-                            <input type="text" name="tooth_number" value="{{ old('tooth_number') }}"
-                                   placeholder="ex. 11, 21"
-                                   class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1.5">Coût (DT) <span class="text-red-500">*</span></label>
-                            <input type="number" name="cost" min="0" step="0.001" required
-                                   x-model="cost"
-                                   class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        </div>
-                    </div>
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0" x-text="i + 1"></div>
+                                    <span class="text-sm font-semibold text-slate-700">Acte</span>
+                                </div>
+                                <button type="button" @click="removeRow(i)" x-show="rows.length > 1"
+                                        class="p-1 rounded text-slate-300 hover:text-red-500 hover:bg-red-50">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1.5">Statut</label>
-                            <select name="status" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                @foreach(['planned' => 'Planifié', 'in_progress' => 'En cours', 'completed' => 'Terminé', 'cancelled' => 'Annulé'] as $val => $lbl)
-                                <option value="{{ $val }}" @selected(old('status', 'completed') === $val)>{{ $lbl }}</option>
+                            <select :name="`treatments[${i}][treatment_id]`" x-model="row.treatment_id"
+                                    @change="setPrice(i, $event.target.value)" required
+                                    class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                <option value="">Sélectionner un traitement *</option>
+                                @foreach($treatments as $t)
+                                <option value="{{ $t->id }}">{{ $t->name }} (DT {{ number_format($t->price, 3, ',', ' ') }})</option>
                                 @endforeach
                             </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1.5">Date de réalisation</label>
-                            <input type="date" name="completed_date"
-                                   value="{{ old('completed_date', $appointment->appointment_date->format('Y-m-d')) }}"
-                                   class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        </div>
-                    </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Notes</label>
-                        <textarea name="notes" rows="2"
-                                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none">{{ old('notes') }}</textarea>
-                    </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-500 mb-1">Numéro de dent</label>
+                                    <input type="text" :name="`treatments[${i}][tooth_number]`" x-model="row.tooth_number"
+                                           placeholder="ex. 11, 21"
+                                           class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-500 mb-1">Coût (DT) *</label>
+                                    <input type="number" :name="`treatments[${i}][cost]`" x-model="row.cost"
+                                           min="0" step="0.001" required
+                                           class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-500 mb-1">Statut</label>
+                                    <select :name="`treatments[${i}][status]`" x-model="row.status"
+                                            class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                        <option value="planned">Planifié</option>
+                                        <option value="in_progress">En cours</option>
+                                        <option value="completed">Terminé</option>
+                                        <option value="cancelled">Annulé</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-500 mb-1">Date de réalisation</label>
+                                    <input type="date" :name="`treatments[${i}][completed_date]`" x-model="row.completed_date"
+                                           class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-slate-500 mb-1">Notes</label>
+                                <textarea :name="`treatments[${i}][notes]`" x-model="row.notes" rows="2"
+                                          class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white resize-none"></textarea>
+                            </div>
+                        </div>
+                    </template>
+
+                    <button type="button" @click="addRow()"
+                            class="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium w-full justify-center py-2.5 border-2 border-dashed border-blue-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        Ajouter un traitement
+                    </button>
                 </div>
 
                 <div class="px-6 py-4 border-t border-slate-100 flex items-center gap-3">
                     <button type="submit"
                             class="flex-1 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 text-center">
-                        Enregistrer l'acte
+                        Enregistrer les actes
                     </button>
                     <button type="button" @click="showDossier = false"
                             class="px-5 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200">
@@ -798,6 +822,19 @@
 
 @push('scripts')
 <script>
+function dossierForm() {
+    const defaultDate = '{{ $appointment->appointment_date->format('Y-m-d') }}';
+    return {
+        rows: [{ treatment_id: '', tooth_number: '', cost: '', status: 'completed', notes: '', completed_date: defaultDate }],
+        prices: {!! $treatments->pluck('price','id')->toJson() !!},
+        addRow() {
+            this.rows.push({ treatment_id: '', tooth_number: '', cost: '', status: 'completed', notes: '', completed_date: defaultDate });
+        },
+        removeRow(i) { if (this.rows.length > 1) this.rows.splice(i, 1); },
+        setPrice(i, id) { this.rows[i].cost = this.prices[id] ?? ''; },
+    };
+}
+
 function ordonnanceForm() {
     return {
         items: [{ medicament: '', dosage: '', frequence: '', duree: '', instructions: '' }],
